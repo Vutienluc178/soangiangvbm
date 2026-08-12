@@ -244,6 +244,9 @@ body{--h1-color:#1F3864;--h2-color:#2E74B5;--h3-color:#5B9BD5;--accent:#0550AE;-
 #doc2slide-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:900;display:none;align-items:center;justify-content:center}
 #doc2slide-overlay.open{display:flex}
 #doc2slide-modal{background:#161b22;border:1px solid #30363d;border-radius:10px;width:min(980px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden}
+#savefile-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:900;display:none;align-items:center;justify-content:center}
+#savefile-overlay.open{display:flex}
+#savefile-modal{background:#161b22;border:1px solid #30363d;border-radius:10px;width:min(560px,94vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:auto}
 #tronde-modal{background:#161b22;border:1px solid #30363d;border-radius:10px;width:min(980px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden}
 .td-hdr{background:#0d1117;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #30363d;flex-shrink:0}
 .td-hdr h2{font-size:.95rem;font-weight:700;color:#58a6ff;margin:0}
@@ -399,6 +402,7 @@ function tryAuthLogin(){
 
   <!-- NHÓM 1: Thiết lập tài liệu -->
   <button class="btn btn-ghost" id="btn-settings" onclick="toggleSettings()">⚙ Cài đặt</button>
+  <button class="btn" onclick="openSaveFileModal()" style="background:#3a2d1a;color:#ffcf8b;border:1px solid #8f5e1f" onmouseover="this.style.background='#4a3820'" onmouseout="this.style.background='#3a2d1a'" title="Đặt tên file theo quy ước Khối-Chương-Bài-Dạng và chọn thư mục lưu">📁 Lưu file</button>
 
   <select class="tpl-select" id="tpl-select" onchange="loadTemplate(this.value)">
     <option value="">📋 Chèn mẫu…</option>
@@ -851,6 +855,55 @@ function tryAuthLogin(){
         <button class="td-btn" style="background:#0f4c3a;color:#8effc9" onclick="doc2SlideInsertToEditor()">📋 Chèn nội dung này vào Editor chính</button>
         <div style="font-size:.7rem;color:#8b949e;line-height:1.6">Sửa trực tiếp khung bên trái trước khi xuất nếu cần chỉnh vị trí tách slide.</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL LƯU FILE ══════════════════════ -->
+<div id="savefile-overlay">
+  <div id="savefile-modal">
+    <div class="td-hdr">
+      <h2>📁 Lưu file theo quy ước</h2>
+      <button class="td-close" onclick="closeSaveFileModal()">✕</button>
+    </div>
+    <div style="padding:18px 22px;display:flex;flex-direction:column;gap:14px;max-width:520px">
+      <div class="td-label">Đặt tên: Khối – Chương – Bài – Dạng</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input type="text" id="save-khoi" placeholder="Khối (VD: 10)" class="sf-input" oninput="refreshSaveFileNamePreview()">
+        <input type="text" id="save-chuong" placeholder="Chương (VD: 1)" class="sf-input" oninput="refreshSaveFileNamePreview()">
+        <input type="text" id="save-bai" placeholder="Bài (VD: 2)" class="sf-input" oninput="refreshSaveFileNamePreview()">
+        <select id="save-dang" class="sf-select" onchange="refreshSaveFileNamePreview()">
+          <option>Lý thuyết</option>
+          <option>KHBH</option>
+          <option>Phiếu bài tập</option>
+          <option>Slide</option>
+          <option>Đề thi</option>
+          <option>Khác</option>
+        </select>
+      </div>
+      <div style="font-size:.78rem;color:#8b949e">Tên file sẽ là: <b id="save-filename-preview" style="color:#7ee8a2">Tài liệu</b></div>
+
+      <hr class="td-sep">
+
+      <div class="td-label">📂 Thư mục lưu (chỉ Chrome/Edge)</div>
+      <div style="display:flex;gap:8px">
+        <select id="save-folder-select" class="sf-select" style="flex:1">
+          <option value="">— Tải về mặc định (Downloads) —</option>
+        </select>
+        <button class="td-btn" style="width:auto;padding:9px 14px;background:#1a3d55;color:#a8e6ff" onclick="addSaveFolder()">➕ Thêm</button>
+        <button class="td-btn" style="width:auto;padding:9px 14px;background:#5a1f1f;color:#ffb4b4" onclick="removeSaveFolder()">🗑 Xoá</button>
+      </div>
+      <div style="font-size:.7rem;color:#8b949e;line-height:1.6">
+        "➕ Thêm" mở hộp thoại chọn thư mục thật trên máy — lần sau chỉ cần chọn lại trong danh sách, không phải duyệt lại. "🗑 Xoá" chỉ bỏ liên kết trong tool, không xoá file/thư mục thật.
+      </div>
+
+      <hr class="td-sep">
+
+      <div class="td-label">Lưu ngay</div>
+      <button class="td-btn" style="background:#2ea043;color:#fff" onclick="saveMarkdownFile()">📝 Lưu Markdown (.md)</button>
+      <button class="td-btn" style="background:#1a5fb4;color:#fff" onclick="exportDocx()">📄 Lưu Word (.docx)</button>
+      <button class="td-btn" style="background:#8b1a1a;color:#ffd" onclick="exportPdf()">📕 Xuất PDF (chọn Save as PDF)</button>
+      <div style="font-size:.7rem;color:#8b949e">PDF dùng hộp thoại in của trình duyệt nên không tự ghi thẳng vào thư mục đã chọn được — tên file gợi ý trong hộp thoại đã theo đúng quy ước trên.</div>
     </div>
   </div>
 </div>
@@ -2250,7 +2303,7 @@ function openPdfWindow(autoPrint){
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>${esc(s.hdrMain||'Tài liệu')}</title>
+<title>${esc(buildSaveFileName('pdf').replace(/\.pdf$/,''))}</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" onload="cssOk=true;go()">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap">
 <style>
@@ -2715,7 +2768,7 @@ function exportLecturePdf(autoPrint=false){
   const doc=`<!DOCTYPE html>
 <html lang="vi"><head>
 <meta charset="UTF-8">
-<title>Bài giảng PDF 16:9</title>
+<title>${xEsc(buildSaveFileName('pdf').replace(/\.pdf$/,''))}</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <style>
 /* Full 16:9 page – no margins → mỗi slide full màn hình khi trình chiếu */
@@ -3098,7 +3151,7 @@ function exportLecturePdfPause(){
   const doc=`<!DOCTYPE html>
 <html lang="vi"><head>
 <meta charset="UTF-8">
-<title>Trình chiếu PDF – Pause &amp; Reveal</title>
+<title>${xEsc(buildSaveFileName('pdf').replace(/\.pdf$/,''))}</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <style>
 @page{size:297mm 167mm;margin:0}
@@ -4126,9 +4179,162 @@ ${finalSectPr}
     }
 
     const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-    saveAs(blob,'bai-giang-slide.docx');
+    await saveFileToTarget(blob,buildSaveFileName('docx'));
     setStatus('✅ Xuất Word dạng slide (16:9) thành công!','ok');
   }catch(e){setStatus('❌ Lỗi: '+e.message,'err');console.error(e);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// LƯU FILE THEO QUY ƯỚC: Khối - Chương N - Bài N - Dạng, và quản lý
+// NHIỀU THƯ MỤC LƯU (chọn lại được, xoá được khi không dùng nữa).
+// Dùng File System Access API (showDirectoryPicker) để lưu thẳng vào thư
+// mục thật trên máy – chỉ Chrome/Edge hỗ trợ; trình duyệt khác tự động rơi
+// về tải file bình thường (Downloads). Danh sách thư mục lưu trong
+// IndexedDB (localStorage không lưu được "handle" thư mục).
+// ═══════════════════════════════════════════════════════════
+const SAVE_DANG_OPTIONS=['Lý thuyết','KHBH','Phiếu bài tập','Slide','Đề thi','Khác'];
+
+function sanitizeFileNamePart(s){
+  return String(s||'').trim().replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ');
+}
+// Ghép tên file theo đúng quy ước: Khối - Chương X - Bài Y - Dạng
+function buildSaveFileName(ext){
+  const khoi=sanitizeFileNamePart((document.getElementById('save-khoi')||{}).value);
+  const chuong=sanitizeFileNamePart((document.getElementById('save-chuong')||{}).value);
+  const bai=sanitizeFileNamePart((document.getElementById('save-bai')||{}).value);
+  const dang=(document.getElementById('save-dang')||{}).value||'Khác';
+  const parts=[
+    khoi?('Khối '+khoi):'',
+    chuong?('Chương '+chuong):'',
+    bai?('Bài '+bai):'',
+    dang,
+  ].filter(Boolean);
+  const name=parts.length?parts.join(' - '):'Tài liệu';
+  return name+'.'+ext;
+}
+function refreshSaveFileNamePreview(){
+  const el=document.getElementById('save-filename-preview');
+  if(el)el.textContent=buildSaveFileName('...');
+}
+
+// ── IndexedDB: danh sách thư mục đã chọn (lưu "handle" thư mục thật) ──
+function openSaveFoldersDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open('vtl_save_folders_db',1);
+    req.onupgradeneeded=()=>{req.result.createObjectStore('folders',{keyPath:'id'});};
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function listSavedFolders(){
+  const db=await openSaveFoldersDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('folders','readonly');
+    const req=tx.objectStore('folders').getAll();
+    req.onsuccess=()=>resolve(req.result||[]);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function saveFolderRecord(rec){
+  const db=await openSaveFoldersDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('folders','readwrite');
+    tx.objectStore('folders').put(rec);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function deleteFolderRecord(id){
+  const db=await openSaveFoldersDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('folders','readwrite');
+    tx.objectStore('folders').delete(id);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+async function refreshSaveFolderList(){
+  const sel=document.getElementById('save-folder-select');
+  if(!sel)return;
+  const folders=await listSavedFolders();
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Tải về mặc định (Downloads) —</option>'+
+    folders.map(f=>`<option value="${f.id}">📁 ${sanitizeFileNamePart(f.name)}</option>`).join('');
+  if(folders.some(f=>f.id===cur))sel.value=cur;
+}
+async function addSaveFolder(){
+  if(!window.showDirectoryPicker){
+    setStatus('⚠ Trình duyệt này không hỗ trợ chọn thư mục lưu trực tiếp (chỉ Chrome/Edge). File sẽ luôn tải về thư mục Downloads mặc định.','err');
+    return;
+  }
+  try{
+    const handle=await window.showDirectoryPicker();
+    const id='f_'+Date.now();
+    await saveFolderRecord({id,name:handle.name,handle});
+    await refreshSaveFolderList();
+    const sel=document.getElementById('save-folder-select');
+    if(sel)sel.value=id;
+    setStatus('✅ Đã thêm thư mục lưu: '+handle.name,'ok');
+  }catch(e){
+    if(e && e.name!=='AbortError') setStatus('❌ Lỗi chọn thư mục: '+e.message,'err');
+  }
+}
+async function removeSaveFolder(){
+  const sel=document.getElementById('save-folder-select');
+  const id=sel?sel.value:'';
+  if(!id){setStatus('⚠ Chưa chọn thư mục nào để xoá khỏi danh sách','err');return;}
+  const folders=await listSavedFolders();
+  const f=folders.find(x=>x.id===id);
+  if(!confirm('Xoá liên kết thư mục "'+(f?f.name:'')+'" khỏi danh sách?\n(Chỉ bỏ liên kết trong tool – KHÔNG xoá file/thư mục thật trong máy)'))return;
+  await deleteFolderRecord(id);
+  await refreshSaveFolderList();
+  setStatus('🗑 Đã xoá liên kết thư mục khỏi danh sách','ok');
+}
+// Lấy handle thư mục đang chọn (xin lại quyền ghi nếu cần – bắt buộc theo
+// mỗi phiên trình duyệt vì lý do bảo mật, không lưu được quyền vĩnh viễn).
+async function getActiveFolderHandle(){
+  const sel=document.getElementById('save-folder-select');
+  if(!sel||!sel.value)return null;
+  const folders=await listSavedFolders();
+  const f=folders.find(x=>x.id===sel.value);
+  if(!f)return null;
+  try{
+    let perm=await f.handle.queryPermission({mode:'readwrite'});
+    if(perm!=='granted')perm=await f.handle.requestPermission({mode:'readwrite'});
+    return perm==='granted'?f.handle:null;
+  }catch(e){return null;}
+}
+// Lưu file: nếu có thư mục đang chọn (và trình duyệt hỗ trợ) -> ghi thẳng
+// vào thư mục đó; ngược lại tự động rơi về tải file bình thường.
+async function saveFileToTarget(blob, filename){
+  const handle=await getActiveFolderHandle();
+  if(handle){
+    try{
+      const fileHandle=await handle.getFileHandle(filename,{create:true});
+      const writable=await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      setStatus('✅ Đã lưu vào thư mục đã chọn: '+filename,'ok');
+      return;
+    }catch(e){
+      console.error(e);
+      setStatus('⚠ Không ghi được vào thư mục đã chọn (có thể quyền bị thu hồi) – tải về mặc định thay thế.','err');
+    }
+  }
+  saveAs(blob,filename);
+}
+function saveMarkdownFile(){
+  const md=document.getElementById('editor').value;
+  const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
+  saveFileToTarget(blob,buildSaveFileName('md'));
+}
+function openSaveFileModal(){
+  document.getElementById('savefile-overlay').classList.add('open');
+  refreshSaveFolderList();
+  refreshSaveFileNamePreview();
+}
+function closeSaveFileModal(){
+  document.getElementById('savefile-overlay').classList.remove('open');
 }
 
 async function exportDocx(){
@@ -4194,7 +4400,7 @@ async function exportDocx(){
     if(useFtr)zip.file('word/footer1.xml',buildFooterXml(s));
 
     const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-    saveAs(blob,'document.docx');
+    await saveFileToTarget(blob,buildSaveFileName('docx'));
     setStatus('✅ Xuất Word thành công!','ok');
   }catch(e){setStatus('❌ Lỗi: '+e.message,'err');console.error(e);}
 }
