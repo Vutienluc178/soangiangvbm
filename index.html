@@ -878,10 +878,23 @@ function tryAuthLogin(){
           <option>Phiếu bài tập</option>
           <option>Slide</option>
           <option>Đề thi</option>
+          <option>STEM</option>
+          <option>SKKN</option>
+          <option>NCKH</option>
           <option>Khác</option>
         </select>
       </div>
       <div style="font-size:.78rem;color:#8b949e">Tên file sẽ là: <b id="save-filename-preview" style="color:#7ee8a2">Tài liệu</b></div>
+
+      <hr class="td-sep">
+
+      <div class="td-label">Thông tin bổ sung (không bắt buộc)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input type="text" id="save-author" placeholder="Người soạn (VD: Vũ Tiến Lực)" class="sf-input">
+        <input type="date" id="save-date" class="sf-input">
+      </div>
+      <input type="text" id="save-note" placeholder="Ghi chú (không bắt buộc)" class="sf-input">
+      <div style="font-size:.68rem;color:#8b949e;line-height:1.6">Thông tin này được lưu vào thuộc tính tài liệu Word (Tác giả/Ghi chú) và phần đầu file Markdown — không hiển thị trong nội dung chính.</div>
 
       <hr class="td-sep">
 
@@ -893,8 +906,10 @@ function tryAuthLogin(){
         <button class="td-btn" style="width:auto;padding:9px 14px;background:#1a3d55;color:#a8e6ff" onclick="addSaveFolder()">➕ Thêm</button>
         <button class="td-btn" style="width:auto;padding:9px 14px;background:#5a1f1f;color:#ffb4b4" onclick="removeSaveFolder()">🗑 Xoá</button>
       </div>
+      <button class="td-btn" style="background:#21262d;color:#8b949e;border:1px solid #30363d" onclick="toggleFolderContents()">📂 Xem nội dung thư mục đã lưu</button>
+      <div id="save-folder-contents" style="display:none;max-height:160px;overflow:auto;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;font-size:.76rem;color:#c9d1d9"></div>
       <div style="font-size:.7rem;color:#8b949e;line-height:1.6">
-        "➕ Thêm" mở hộp thoại chọn thư mục thật trên máy — lần sau chỉ cần chọn lại trong danh sách, không phải duyệt lại. "🗑 Xoá" chỉ bỏ liên kết trong tool, không xoá file/thư mục thật.
+        "➕ Thêm" mở hộp thoại chọn thư mục thật trên máy — lần sau chỉ cần chọn lại trong danh sách, không phải duyệt lại. "🗑 Xoá" chỉ bỏ liên kết trong tool, không xoá file/thư mục thật. Trình duyệt không cho phép JavaScript tự mở trình duyệt file hệ thống, nên "📂 Xem nội dung" hiển thị danh sách file ngay trong tool để xác nhận đã lưu đúng chỗ.
       </div>
 
       <hr class="td-sep">
@@ -4192,7 +4207,7 @@ ${finalSectPr}
 // về tải file bình thường (Downloads). Danh sách thư mục lưu trong
 // IndexedDB (localStorage không lưu được "handle" thư mục).
 // ═══════════════════════════════════════════════════════════
-const SAVE_DANG_OPTIONS=['Lý thuyết','KHBH','Phiếu bài tập','Slide','Đề thi','Khác'];
+const SAVE_DANG_OPTIONS=['Lý thuyết','KHBH','Phiếu bài tập','Slide','Đề thi','STEM','SKKN','NCKH','Khác'];
 
 function sanitizeFileNamePart(s){
   return String(s||'').trim().replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ');
@@ -4315,6 +4330,9 @@ async function saveFileToTarget(blob, filename){
       await writable.write(blob);
       await writable.close();
       setStatus('✅ Đã lưu vào thư mục đã chọn: '+filename,'ok');
+      // Tự làm mới danh sách file nếu khung "Xem nội dung thư mục" đang mở
+      const box=document.getElementById('save-folder-contents');
+      if(box&&box.style.display!=='none')await refreshFolderContents();
       return;
     }catch(e){
       console.error(e);
@@ -4323,18 +4341,91 @@ async function saveFileToTarget(blob, filename){
   }
   saveAs(blob,filename);
 }
+// Trình duyệt KHÔNG cho phép JavaScript tự mở trình duyệt file của hệ điều
+// hành (lý do bảo mật) – "mở thư mục" thực chất là liệt kê nội dung thư mục
+// đã chọn NGAY TRONG TOOL để xác nhận đã lưu đúng chỗ, dùng chính handle đã
+// có sẵn (File System Access API cho phép duyệt lại thư mục).
+async function refreshFolderContents(){
+  const box=document.getElementById('save-folder-contents');
+  if(!box)return;
+  const handle=await getActiveFolderHandle();
+  if(!handle){
+    box.innerHTML='<span style="color:#8b949e">Chưa chọn thư mục nào (đang tải về Downloads mặc định).</span>';
+    return;
+  }
+  box.innerHTML='<span style="color:#8b949e">Đang tải danh sách…</span>';
+  try{
+    const items=[];
+    for await(const [name,entry] of handle.values()){
+      items.push({name,kind:entry.kind});
+    }
+    items.sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+    if(!items.length){box.innerHTML='<span style="color:#8b949e">Thư mục trống.</span>';return;}
+    box.innerHTML=items.map(it=>`<div style="padding:2px 0">${it.kind==='directory'?'📁':'📄'} ${sanitizeFileNamePart(it.name)}</div>`).join('');
+  }catch(e){
+    box.innerHTML='<span style="color:#f85149">⚠ Không đọc được nội dung thư mục: '+e.message+'</span>';
+  }
+}
+function toggleFolderContents(){
+  const box=document.getElementById('save-folder-contents');
+  if(!box)return;
+  const show=box.style.display==='none';
+  box.style.display=show?'block':'none';
+  if(show)refreshFolderContents();
+}
 function saveMarkdownFile(){
   const md=document.getElementById('editor').value;
-  const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
+  const author=(document.getElementById('save-author')||{}).value||'';
+  const date=(document.getElementById('save-date')||{}).value||'';
+  const note=(document.getElementById('save-note')||{}).value||'';
+  const khoi=(document.getElementById('save-khoi')||{}).value||'';
+  const chuong=(document.getElementById('save-chuong')||{}).value||'';
+  const bai=(document.getElementById('save-bai')||{}).value||'';
+  const dang=(document.getElementById('save-dang')||{}).value||'';
+  // Ghi thông tin bổ sung thành khối YAML front-matter ở đầu file (không
+  // hiện trong nội dung khi mở lại soạn tiếp, chỉ mang tính ghi chú/metadata).
+  const meta=[];
+  if(khoi||chuong||bai||dang)meta.push(`môn_học: "Khối ${khoi} - Chương ${chuong} - Bài ${bai} - ${dang}"`);
+  if(author)meta.push(`người_soạn: "${author}"`);
+  if(date)meta.push(`ngày_soạn: "${date}"`);
+  if(note)meta.push(`ghi_chú: "${note}"`);
+  const frontMatter=meta.length?('---\n'+meta.join('\n')+'\n---\n\n'):'';
+  const blob=new Blob([frontMatter+md],{type:'text/markdown;charset=utf-8'});
   saveFileToTarget(blob,buildSaveFileName('md'));
 }
 function openSaveFileModal(){
   document.getElementById('savefile-overlay').classList.add('open');
   refreshSaveFolderList();
   refreshSaveFileNamePreview();
+  if(!(document.getElementById('save-date')||{}).value){
+    const el=document.getElementById('save-date');
+    if(el)el.value=new Date().toISOString().slice(0,10);
+  }
 }
 function closeSaveFileModal(){
   document.getElementById('savefile-overlay').classList.remove('open');
+}
+
+// Thuộc tính tài liệu Word (Tác giả/Chủ đề/Ghi chú) – lấy từ modal "📁 Lưu file"
+function buildCorePropsXml(){
+  const author=(document.getElementById('save-author')||{}).value||'';
+  const dateVal=(document.getElementById('save-date')||{}).value||'';
+  const note=(document.getElementById('save-note')||{}).value||'';
+  const khoi=(document.getElementById('save-khoi')||{}).value||'';
+  const chuong=(document.getElementById('save-chuong')||{}).value||'';
+  const bai=(document.getElementById('save-bai')||{}).value||'';
+  const dang=(document.getElementById('save-dang')||{}).value||'';
+  const subject=[khoi&&('Khối '+khoi),chuong&&('Chương '+chuong),bai&&('Bài '+bai),dang].filter(Boolean).join(' - ');
+  const iso=(dateVal?dateVal:new Date().toISOString().slice(0,10))+'T00:00:00Z';
+  return`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:creator>${xEsc(author)}</dc:creator>
+  <cp:lastModifiedBy>${xEsc(author)}</cp:lastModifiedBy>
+  <dc:subject>${xEsc(subject)}</dc:subject>
+  <dc:description>${xEsc(note)}</dc:description>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${iso}</dcterms:modified>
+</cp:coreProperties>`;
 }
 
 async function exportDocx(){
@@ -4384,17 +4475,19 @@ async function exportDocx(){
     let ctOverrides=`<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
-  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>`;
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`;
     if(useHdr)ctOverrides+=`\n  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`;
     if(useFtr)ctOverrides+=`\n  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`;
 
     const zip=new JSZip();
     zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n  <Default Extension="xml" ContentType="application/xml"/>\n  ${ctOverrides}\n</Types>`);
-    zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n</Relationships>`);
+    zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>\n</Relationships>`);
     zip.file('word/document.xml',docXml);
     zip.file('word/styles.xml',buildStylesXml(h1Hex,h2Hex,h3Hex,accentHex,thHex));
     zip.file('word/settings.xml',settingsXml());
     zip.file('word/numbering.xml',numberingXml());
+    zip.file('docProps/core.xml',buildCorePropsXml());
     zip.file('word/_rels/document.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  ${relsEntries}\n</Relationships>`);
     if(useHdr)zip.file('word/header1.xml',buildHeaderXml(s));
     if(useFtr)zip.file('word/footer1.xml',buildFooterXml(s));
