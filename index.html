@@ -898,6 +898,14 @@ function tryAuthLogin(){
 
       <hr class="td-sep">
 
+      <label class="td-check" style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:#e6edf3">
+        <input type="checkbox" id="clean-edu-mode">
+        ✨ Xuất Word theo mẫu văn bản giáo dục chuẩn (dọn ký hiệu AI dư thừa)
+      </label>
+      <div style="font-size:.68rem;color:#8b949e;line-height:1.6">Khi bật: chữ Times New Roman 12pt, giãn dòng 1.5, căn đều hai bên, tiêu đề màu đen (bỏ màu mè); tự động dọn icon trang trí thừa, gộp bớt dấu --- / dòng trống liên tiếp, bỏ câu dẫn nhập kiểu AI ("Dưới đây là...") nếu có. Chỉ áp dụng khi bấm "📄 Lưu Word" từ khung này.</div>
+
+      <hr class="td-sep">
+
       <div class="td-label">📂 Thư mục lưu (chỉ Chrome/Edge)</div>
       <div style="display:flex;gap:8px">
         <select id="save-folder-select" class="sf-select" style="flex:1">
@@ -1541,6 +1549,16 @@ function expandHevaMacro(text){
 // ═══════════════════════════════════════════════════════════
 function stripIdAttributes(text){
   return String(text||'').replace(/\{id="[^"]*"\}/g,'');
+}
+
+// Xoá HẲN các dòng trống (chỉ chứa khoảng trắng/tab) khi xuất Word – các
+// đoạn văn đã tự có khoảng cách trên/dưới riêng (w:spacing), giữ dòng trống
+// trong markdown không tạo thêm khoảng cách gì mà chỉ khiến một số vị trí
+// (đặc biệt sau bảng/khối đặc biệt) lộ ra 1 đoạn văn trống <w:p></w:p>
+// không cần thiết trong file Word xuất ra. Áp dụng cho MỌI kiểu xuất Word
+// (Word thường, Word dạng slide).
+function stripBlankLines(text){
+  return String(text||'').replace(/\r\n/g,'\n').split('\n').filter(l=>l.trim()!=='').join('\n');
 }
 function convertBracketDisplayMath(text){
   return String(text||'').replace(/\\\[([\s\S]*?)\\\]/g,(_,inner)=>'$$'+inner+'$$');
@@ -4429,7 +4447,9 @@ function buildCorePropsXml(){
 }
 
 async function exportDocx(){
-  const md=document.getElementById('editor').value;
+  let md=document.getElementById('editor').value;
+  const eduMode=(document.getElementById('clean-edu-mode')||{}).checked;
+  if(eduMode)md=cleanAiFormatting(md);
   setStatus('Đang tạo file Word...','info');
   try{
     await new Promise(r=>setTimeout(r,30));
@@ -4484,7 +4504,7 @@ async function exportDocx(){
     zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n  <Default Extension="xml" ContentType="application/xml"/>\n  ${ctOverrides}\n</Types>`);
     zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>\n</Relationships>`);
     zip.file('word/document.xml',docXml);
-    zip.file('word/styles.xml',buildStylesXml(h1Hex,h2Hex,h3Hex,accentHex,thHex));
+    zip.file('word/styles.xml',eduMode?buildEduStylesXml():buildStylesXml(h1Hex,h2Hex,h3Hex,accentHex,thHex));
     zip.file('word/settings.xml',settingsXml());
     zip.file('word/numbering.xml',numberingXml());
     zip.file('docProps/core.xml',buildCorePropsXml());
@@ -4559,6 +4579,92 @@ function buildSlideStylesXml(h1,h2,h3,accent,thBg){
     </w:tblBorders></w:tblPr>
   </w:style>
 </w:styles>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// BỘ STYLE "CHUẨN VĂN BẢN GIÁO DỤC" – dùng khi bật tuỳ chọn "✨ Xuất theo
+// mẫu văn bản giáo dục chuẩn". Khác bộ mặc định ở chỗ: chữ 14pt (thay vì
+// 12pt), giãn dòng 1.5, căn ĐỀU hai bên (thay vì trái), tiêu đề màu ĐEN
+// (không xanh/màu mè), tiêu đề lớn căn GIỮA – đúng phong cách văn bản
+// hành chính/giáo án phổ biến ở trường phổ thông Việt Nam.
+// ═══════════════════════════════════════════════════════════
+function buildEduStylesXml(){
+  return`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr>
+      <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+      <w:sz w:val="24"/><w:szCs w:val="24"/>
+      <w:lang w:val="vi-VN" w:eastAsia="vi-VN"/>
+    </w:rPr></w:rPrDefault>
+    <w:pPrDefault><w:pPr>
+      <w:spacing w:after="120" w:line="360" w:lineRule="auto"/>
+      <w:jc w:val="both"/>
+    </w:pPr></w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="0"/><w:spacing w:before="240" w:after="120"/><w:jc w:val="center"/><w:keepNext/></w:pPr>
+    <w:rPr><w:b/><w:bCs/><w:sz w:val="28"/><w:szCs w:val="28"/><w:color w:val="000000"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="1"/><w:spacing w:before="200" w:after="100"/><w:jc w:val="left"/><w:keepNext/></w:pPr>
+    <w:rPr><w:b/><w:bCs/><w:sz w:val="26"/><w:szCs w:val="26"/><w:color w:val="000000"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3">
+    <w:name w:val="heading 3"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="2"/><w:spacing w:before="160" w:after="80"/><w:jc w:val="left"/><w:keepNext/></w:pPr>
+    <w:rPr><w:b/><w:bCs/><w:i/><w:sz w:val="24"/><w:szCs w:val="24"/><w:color w:val="000000"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4">
+    <w:name w:val="heading 4"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="3"/><w:spacing w:before="120" w:after="60"/></w:pPr>
+    <w:rPr><w:b/><w:bCs/><w:sz w:val="24"/><w:color w:val="000000"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="CodeBlock">
+    <w:name w:val="Code Block"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="left"/>
+      <w:pBdr><w:top w:val="single" w:sz="2" w:space="0" w:color="AAAAAA"/><w:left w:val="single" w:sz="2" w:space="0" w:color="AAAAAA"/><w:bottom w:val="single" w:sz="2" w:space="0" w:color="AAAAAA"/><w:right w:val="single" w:sz="2" w:space="0" w:color="AAAAAA"/></w:pBdr>
+      <w:ind w:left="120" w:right="120"/>
+    </w:pPr>
+    <w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ExamChoice">
+    <w:name w:val="Exam Choice"/><w:basedOn w:val="Normal"/>
+    <w:pPr><w:spacing w:before="0" w:after="40" w:line="360" w:lineRule="auto"/><w:ind w:left="360"/><w:jc w:val="left"/></w:pPr>
+    <w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
+  </w:style>
+  <w:style w:type="table" w:styleId="TableGrid">
+    <w:name w:val="Table Grid"/>
+    <w:tblPr><w:tblBorders>
+      <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+    </w:tblBorders></w:tblPr>
+  </w:style>
+</w:styles>`;
+}
+
+// Dọn ký hiệu/định dạng dư thừa hay gặp trong nội dung do AI soạn (icon
+// trang trí không cần thiết, nhiều dấu --- / dòng trống liên tiếp, câu dẫn
+// nhập thừa kiểu "Dưới đây là..."). KHÔNG đụng tới icon ✅❌🔑 do CHÍNH
+// tool này tự sinh ra cho câu trắc nghiệm/trả lời ngắn (những icon đó nằm
+// trong nội dung được tạo SAU bước này nên không bị ảnh hưởng).
+function cleanAiFormatting(text){
+  let s=String(text||'');
+  const decor=['🎯','💡','🔥','⭐','✨','🚀','📌','👉','👇','👈','🌟','💪','🎉','🌈','🙌','😊','😄','👍','🤔','❗️','‼️','🧠','📢','🏆'];
+  decor.forEach(e=>{s=s.split(e).join('');});
+  // Gộp nhiều dấu --- / *** liên tiếp (AI hay chèn lặp lại) thành 1 đường kẻ
+  s=s.replace(/(?:^[ \t]*(?:-{3,}|\*{3,})[ \t]*$\n?){2,}/gm,'---\n');
+  // Gộp 3+ dòng trống liên tiếp thành đúng 1 dòng trống
+  s=s.replace(/\n{3,}/g,'\n\n');
+  // Xoá khoảng trắng thừa cuối mỗi dòng
+  s=s.split('\n').map(l=>l.replace(/[ \t]+$/,'')).join('\n');
+  // Xoá câu dẫn nhập thừa kiểu AI ở đầu văn bản (không đụng nội dung chuyên môn)
+  s=s.replace(/^\s*(Dưới đây là|Sau đây là|Đây là)\s+(bài|nội dung|đề|phiếu)[^\n]*:\s*\n+/i,'');
+  return s.trim()+'\n';
 }
 
 function buildStylesXml(h1,h2,h3,accent,thBg){
