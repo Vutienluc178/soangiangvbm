@@ -1043,6 +1043,10 @@ class Parser{
       case 'overrightarrow':{return`<m:groupChr><m:groupChrPr><m:chr m:val="→"/><m:pos m:val="top"/><m:vertJc m:val="bot"/></m:groupChrPr><m:e>${this.group()}</m:e></m:groupChr>`}
       case 'overleftarrow':{return`<m:groupChr><m:groupChrPr><m:chr m:val="←"/><m:pos m:val="top"/><m:vertJc m:val="bot"/></m:groupChrPr><m:e>${this.group()}</m:e></m:groupChr>`}
       case 'overleftrightarrow':{return`<m:groupChr><m:groupChrPr><m:chr m:val="↔"/><m:pos m:val="top"/><m:vertJc m:val="bot"/></m:groupChrPr><m:e>${this.group()}</m:e></m:groupChr>`}
+      // Ký hiệu cung tròn (VD $\overparen{AB}$ = cung AB) – dùng trong hình học
+      // đường tròn (số đo cung, góc nội tiếp...). Vẽ vòng cung "⌢" phía trên
+      // cả nhóm chữ, giống hệt cách \overrightarrow vẽ mũi tên phía trên.
+      case 'overparen':case 'overarc':case 'overfrown':case 'wideparen':{return`<m:groupChr><m:groupChrPr><m:chr m:val="⌢"/><m:pos m:val="top"/><m:vertJc m:val="bot"/></m:groupChrPr><m:e>${this.group()}</m:e></m:groupChr>`}
       case 'dot':return macc('̇',this.group())
       case 'ddot':return macc('̈',this.group())
       case 'acute':return macc('́',this.group())
@@ -1967,8 +1971,10 @@ function md2docxBody(md){
     if(line.trim()==='$$'){i++;let math='';while(i<lines.length&&lines[i].trim()!=='$$'){math+=lines[i]+'\n';i++;}if(i<lines.length)i++;xml+=para(latex2omml(math.trim(),true),{center:true});continue;}
     // Headings
     const hm=line.match(/^(#{1,6})\s+(.+)$/);if(hm){xml+=para(lineContent(hm[2]),{style:`Heading${Math.min(hm[1].length,4)}`});i++;continue;}
-    // HR
-    if(/^[-*_]{3,}$/.test(line.trim())){xml+=para('',{bottomBorder:true});i++;continue;}
+    // HR (--- / *** / ___ dùng để chia mục) – ẨN HẲN khi xuất Word, không vẽ
+    // đường kẻ nào cả. Đường kẻ CHỈ còn xuất hiện ở dạng bảng thật (dòng
+    // |---|---| phân cách tiêu đề bảng, xử lý ở nhánh bảng riêng bên dưới).
+    if(/^[-*_]{3,}$/.test(line.trim())){i++;continue;}
     // Blockquote
     if(line.startsWith('> ')){let bq='';while(i<lines.length&&lines[i].startsWith('> ')){bq+=lines[i].slice(2)+' ';i++;}xml+=para(lineContent(bq.trim()),{leftBorder:true,indent:360});continue;}
     // TikZ block (trước code block chung)
